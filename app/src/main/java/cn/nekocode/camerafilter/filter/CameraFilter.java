@@ -48,7 +48,8 @@ public abstract class CameraFilter {
     static int PROGRAM = 0;
 
     private static final int BUF_ACTIVE_TEX_UNIT = GLES20.GL_TEXTURE8;
-    private static RenderBuffer CAMERA_RENDER_BUF;
+    private static RenderBuffer CAMERA_RENDER_BUF_PING;
+    private static RenderBuffer CAMERA_RENDER_BUF_PONG;
 
     private static final float ROATED_TEXTURE_COORDS[] = {
             1.0f, 0.0f,
@@ -97,10 +98,17 @@ public abstract class CameraFilter {
     final public void draw(int cameraTexId, int canvasWidth, int canvasHeight) {
         // TODO move?
         // Create camera render buffer
-        if (CAMERA_RENDER_BUF == null ||
-                CAMERA_RENDER_BUF.getWidth() != canvasWidth ||
-                CAMERA_RENDER_BUF.getHeight() != canvasHeight) {
-            CAMERA_RENDER_BUF = new RenderBuffer(canvasWidth, canvasHeight, BUF_ACTIVE_TEX_UNIT);
+        if (CAMERA_RENDER_BUF_PING == null ||
+                CAMERA_RENDER_BUF_PING.getWidth() != canvasWidth ||
+                CAMERA_RENDER_BUF_PING.getHeight() != canvasHeight) {
+            CAMERA_RENDER_BUF_PING = new RenderBuffer(canvasWidth, canvasHeight, BUF_ACTIVE_TEX_UNIT);
+        }
+
+        // Create camera render buffer
+        if (CAMERA_RENDER_BUF_PONG == null ||
+                CAMERA_RENDER_BUF_PONG.getWidth() != canvasWidth ||
+                CAMERA_RENDER_BUF_PONG.getHeight() != canvasHeight) {
+            CAMERA_RENDER_BUF_PONG = new RenderBuffer(canvasWidth, canvasHeight, BUF_ACTIVE_TEX_UNIT);
         }
 
         // Use shaders
@@ -119,19 +127,34 @@ public abstract class CameraFilter {
         GLES20.glEnableVertexAttribArray(vTexCoordLocation);
         GLES20.glVertexAttribPointer(vTexCoordLocation, 2, GLES20.GL_FLOAT, false, 4 * 2, ROATED_TEXTURE_COORD_BUF);
 
-        // Render to texture
-        CAMERA_RENDER_BUF.bind();
-        GLES20.glClear(GLES20.GL_COLOR_BUFFER_BIT);
-        GLES20.glDrawArrays(GLES20.GL_TRIANGLE_STRIP, 0, 4);
-        CAMERA_RENDER_BUF.unbind();
-        GLES20.glClear(GLES20.GL_COLOR_BUFFER_BIT);
 
-        onDraw(CAMERA_RENDER_BUF.getTexId(), canvasWidth, canvasHeight);
 
+        if(iFrame % 2  == 0)
+        {
+            // Render to texture
+            CAMERA_RENDER_BUF_PING.bind();
+            GLES20.glClear(GLES20.GL_COLOR_BUFFER_BIT);
+            GLES20.glDrawArrays(GLES20.GL_TRIANGLE_STRIP, 0, 4);
+            CAMERA_RENDER_BUF_PING.unbind();
+            GLES20.glClear(GLES20.GL_COLOR_BUFFER_BIT);
+
+            onDraw(new int[]{CAMERA_RENDER_BUF_PING.getTexId(), CAMERA_RENDER_BUF_PONG.getTexId()}, canvasWidth, canvasHeight);
+        }
+        else
+        {
+            // Render to texture
+            CAMERA_RENDER_BUF_PONG.bind();
+            GLES20.glClear(GLES20.GL_COLOR_BUFFER_BIT);
+            GLES20.glDrawArrays(GLES20.GL_TRIANGLE_STRIP, 0, 4);
+            CAMERA_RENDER_BUF_PONG.unbind();
+            GLES20.glClear(GLES20.GL_COLOR_BUFFER_BIT);
+
+            onDraw(new int[]{CAMERA_RENDER_BUF_PONG.getTexId(), CAMERA_RENDER_BUF_PING.getTexId()}, canvasWidth, canvasHeight);
+        }
         iFrame++;
     }
 
-    abstract void onDraw(int cameraTexId, int canvasWidth, int canvasHeight);
+    abstract void onDraw(int[] cameraTexIds, int canvasWidth, int canvasHeight);
 
     void setupShaderInputs(int program, int[] iResolution, int[] iChannels, int[][] iChannelResolutions) {
         setupShaderInputs(program, VERTEX_BUF, TEXTURE_COORD_BUF, iResolution, iChannels, iChannelResolutions);
@@ -180,6 +203,7 @@ public abstract class CameraFilter {
 
     public static void release() {
         PROGRAM = 0;
-        CAMERA_RENDER_BUF = null;
+        CAMERA_RENDER_BUF_PING = null;
+        CAMERA_RENDER_BUF_PONG = null;
     }
 }

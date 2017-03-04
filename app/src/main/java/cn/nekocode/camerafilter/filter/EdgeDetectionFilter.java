@@ -35,10 +35,10 @@ public class EdgeDetectionFilter extends CameraFilter {
     }
 
     @Override
-    public void onDraw(int cameraTexId, int canvasWidth, int canvasHeight) {
+    public void onDraw(int[] cameraTexIds, int canvasWidth, int canvasHeight) {
         setupShaderInputs(program,
                 new int[]{canvasWidth, canvasHeight},
-                new int[]{cameraTexId},
+                cameraTexIds,
                 new int[][]{});
         GLES20.glDrawArrays(GLES20.GL_TRIANGLE_STRIP, 0, 4);
     }
