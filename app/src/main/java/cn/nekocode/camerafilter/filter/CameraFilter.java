@@ -20,6 +20,7 @@ import android.opengl.GLES11Ext;
 import android.opengl.GLES20;
 import android.support.annotation.CallSuper;
 
+import java.nio.Buffer;
 import java.nio.ByteBuffer;
 import java.nio.ByteOrder;
 import java.nio.FloatBuffer;
@@ -48,8 +49,8 @@ public abstract class CameraFilter {
     static int PROGRAM = 0;
 
     private static final int BUF_ACTIVE_TEX_UNIT = GLES20.GL_TEXTURE8;
-    private static RenderBuffer CAMERA_RENDER_BUF_PING;
-    private static RenderBuffer CAMERA_RENDER_BUF_PONG;
+    private static final int historyCount = 3;
+    private static RenderBuffer[] CAMERA_RENDER_BUF = new RenderBuffer[historyCount];
 
     private static final float ROATED_TEXTURE_COORDS[] = {
             1.0f, 0.0f,
@@ -95,20 +96,18 @@ public abstract class CameraFilter {
         iFrame = 0;
     }
 
-    final public void draw(int cameraTexId, int canvasWidth, int canvasHeight) {
+    final public void draw(int cameraTexId, int canvasWidth, int canvasHeight)
+    {
         // TODO move?
         // Create camera render buffer
-        if (CAMERA_RENDER_BUF_PING == null ||
-                CAMERA_RENDER_BUF_PING.getWidth() != canvasWidth ||
-                CAMERA_RENDER_BUF_PING.getHeight() != canvasHeight) {
-            CAMERA_RENDER_BUF_PING = new RenderBuffer(canvasWidth, canvasHeight, BUF_ACTIVE_TEX_UNIT);
-        }
-
-        // Create camera render buffer
-        if (CAMERA_RENDER_BUF_PONG == null ||
-                CAMERA_RENDER_BUF_PONG.getWidth() != canvasWidth ||
-                CAMERA_RENDER_BUF_PONG.getHeight() != canvasHeight) {
-            CAMERA_RENDER_BUF_PONG = new RenderBuffer(canvasWidth, canvasHeight, BUF_ACTIVE_TEX_UNIT);
+        for(int i = 0; i < historyCount; i++) /* Using history of 3 frames */
+        {
+            if (CAMERA_RENDER_BUF[i] == null ||
+                    CAMERA_RENDER_BUF[i].getWidth() != canvasWidth ||
+                    CAMERA_RENDER_BUF[i].getHeight() != canvasHeight)
+            {
+                CAMERA_RENDER_BUF[i] = new RenderBuffer(canvasWidth, canvasHeight, BUF_ACTIVE_TEX_UNIT);
+            }
         }
 
         // Use shaders
@@ -129,28 +128,22 @@ public abstract class CameraFilter {
 
 
 
-        if(iFrame % 2  == 0)
-        {
-            // Render to texture
-            CAMERA_RENDER_BUF_PING.bind();
-            GLES20.glClear(GLES20.GL_COLOR_BUFFER_BIT);
-            GLES20.glDrawArrays(GLES20.GL_TRIANGLE_STRIP, 0, 4);
-            CAMERA_RENDER_BUF_PING.unbind();
-            GLES20.glClear(GLES20.GL_COLOR_BUFFER_BIT);
+        // Render to texture
+        CAMERA_RENDER_BUF[iFrame%historyCount].bind();
+        GLES20.glClear(GLES20.GL_COLOR_BUFFER_BIT);
+        GLES20.glDrawArrays(GLES20.GL_TRIANGLE_STRIP, 0, 4);
+        CAMERA_RENDER_BUF[iFrame%historyCount].unbind();
+        GLES20.glClear(GLES20.GL_COLOR_BUFFER_BIT);
 
-            onDraw(new int[]{CAMERA_RENDER_BUF_PING.getTexId(), CAMERA_RENDER_BUF_PONG.getTexId()}, canvasWidth, canvasHeight);
-        }
-        else
+        int[] texIds = new int[historyCount];
+        for(int i = 0; i < historyCount; i++)
         {
-            // Render to texture
-            CAMERA_RENDER_BUF_PONG.bind();
-            GLES20.glClear(GLES20.GL_COLOR_BUFFER_BIT);
-            GLES20.glDrawArrays(GLES20.GL_TRIANGLE_STRIP, 0, 4);
-            CAMERA_RENDER_BUF_PONG.unbind();
-            GLES20.glClear(GLES20.GL_COLOR_BUFFER_BIT);
-
-            onDraw(new int[]{CAMERA_RENDER_BUF_PONG.getTexId(), CAMERA_RENDER_BUF_PING.getTexId()}, canvasWidth, canvasHeight);
+            texIds[i] = CAMERA_RENDER_BUF[(iFrame-i+historyCount)%historyCount].getTexId();
         }
+
+        onDraw(texIds, canvasWidth, canvasHeight);
+
+
         iFrame++;
     }
 
@@ -203,7 +196,9 @@ public abstract class CameraFilter {
 
     public static void release() {
         PROGRAM = 0;
-        CAMERA_RENDER_BUF_PING = null;
-        CAMERA_RENDER_BUF_PONG = null;
+        for(int i = 0; i < historyCount; i++)
+        {
+            CAMERA_RENDER_BUF[i] = null;
+        }
     }
 }

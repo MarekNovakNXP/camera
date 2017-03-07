@@ -26,6 +26,9 @@ import android.util.SparseArray;
 import android.view.TextureView;
 
 import java.io.IOException;
+import java.nio.Buffer;
+import java.nio.ByteBuffer;
+import java.nio.ByteOrder;
 
 import javax.microedition.khronos.egl.EGL10;
 import javax.microedition.khronos.egl.EGLConfig;
@@ -45,12 +48,13 @@ public class CameraRenderer implements Runnable, TextureView.SurfaceTextureListe
     private static final String TAG = "CameraRenderer";
     private static final int EGL_OPENGL_ES2_BIT = 4;
     private static final int EGL_CONTEXT_CLIENT_VERSION = 0x3098;
-    private static final int DRAW_INTERVAL = 1000 / 30;
+    private static final int DRAW_INTERVAL = 1000 / 120; //!30;
 
     private Thread renderThread;
     private Context context;
     private SurfaceTexture surfaceTexture;
     private int gwidth, gheight;
+    private Buffer binaryBuffer;
 
     private EGLDisplay eglDisplay;
     private EGLSurface eglSurface;
@@ -92,6 +96,7 @@ public class CameraRenderer implements Runnable, TextureView.SurfaceTextureListe
         return true;
     }
 
+
     @Override
     public void onSurfaceTextureAvailable(SurfaceTexture surface, int width, int height) {
         if (renderThread != null && renderThread.isAlive()) {
@@ -102,14 +107,18 @@ public class CameraRenderer implements Runnable, TextureView.SurfaceTextureListe
         surfaceTexture = surface;
         gwidth = -width;
         gheight = -height;
+        binaryBuffer = ByteBuffer.allocateDirect(gwidth*gheight*4/*RGBA*/).order(ByteOrder.nativeOrder());
 
         // Open camera
         Pair<Camera.CameraInfo, Integer> backCamera = getBackCamera();
         final int backCameraId = backCamera.second;
+
         camera = Camera.open(backCameraId);
 
         // Start rendering
         renderThread.start();
+
+        camera.setDisplayOrientation(0);
     }
 
     public void setSelectedFilter(int id) {
@@ -135,6 +144,7 @@ public class CameraRenderer implements Runnable, TextureView.SurfaceTextureListe
 
         // Start camera preview
         try {
+            Camera.Parameters p = camera.getParameters();
             camera.setPreviewTexture(cameraSurfaceTexture);
             camera.startPreview();
         } catch (IOException ioe) {
@@ -160,6 +170,8 @@ public class CameraRenderer implements Runnable, TextureView.SurfaceTextureListe
                 // Flush
                 GLES20.glFlush();
                 egl10.eglSwapBuffers(eglDisplay, eglSurface);
+
+                GLES20.glReadPixels(0,0, gwidth, gheight, GLES20.GL_UNSIGNED_BYTE, GLES20.GL_RGBA, binaryBuffer);
 
                 Thread.sleep(DRAW_INTERVAL);
 
